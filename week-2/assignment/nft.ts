@@ -1,70 +1,83 @@
-import { Keypair, Connection, PublicKey } from "@solana/web3.js";
-import { Metaplex, keypairIdentity } from "@metaplex-foundation/js";
-import { payer } from "../code/lib/vars";
+/**
+ * Demonstrates how to mint NFTs and store their metadata on chain using the Metaplex MetadataProgram
+ */
+
+import { Keypair } from "@solana/web3.js";
+import { Metaplex, irysStorage, keypairIdentity } from "@metaplex-foundation/js";
+
+import { payer, connection } from "../code/lib/vars";
 import { explorerURL, printConsoleSeparator } from "../code/lib/helpers";
-
-
-const connection = new Connection("https://api.devnet.solana.com");
-
 (async () => {
-  try {
-    console.log("Payer address:", payer.publicKey.toBase58());
+  console.log("Payer address:", payer.publicKey.toBase58());
 
-    // Define metadata for the NFT
-    const metadata = {
-      name: "Solana Bootcamp Autumn 2024",
-      symbol: "SBS",
-      description: "An NFT for Solana Bootcamp Autumn 2024 with unique traits.",
-      image:
-        "https://github.com/trankhacvy/solana-bootcamp-autumn-2024/blob/main/assets/logo.png?raw=true",
-      attributes: [
-        { trait_type: "Background", value: "Autumn" },
-        { trait_type: "Special Feature", value: "Bootcamp Exclusive" },
-        { trait_type: "Edition", value: "2024" }
-      ]
-    };
 
-    console.log("Uploading metadata...");
 
-    // Create a Metaplex instance
-    const metaplex = Metaplex.make(connection)
-      .use(keypairIdentity(payer));
+  const metadata = {
+    name: "Monkey",
+    symbol: "MOK",
+    description: "Monkey NFT",
+    image:
+      "https://i.imgur.com/4W6Xjpw.jpeg",
+  };
 
-    // Upload metadata and get URI
-    const { uri } = await metaplex.nfts().uploadMetadata(metadata);
-    console.log("Metadata uploaded:", uri);
+  /**
+   * Use the Metaplex sdk to handle most NFT actions
+   */
 
-    printConsoleSeparator("NFT details");
+  // create an instance of Metaplex sdk for use
+  const metaplex = Metaplex.make(connection)
+    // set our keypair to use, and pay for the transaction
+    .use(keypairIdentity(payer))
+    // define a storage mechanism to upload with
+    .use(
+      irysStorage({
+        address: "https://devnet.bundlr.network",
+        providerUrl: "https://api.devnet.solana.com",
+        timeout: 60000,
+      }),
+    );
 
-    console.log("Creating NFT using Metaplex...");
+  console.log("Uploading metadata...");
 
-    // Generate a new Keypair for the token mint
-    const tokenMint = Keypair.generate();
+  // upload the JSON metadata
+  const { uri } = await metaplex.nfts().uploadMetadata(metadata);
 
-    // Create the NFT
-    const { nft, response } = await metaplex.nfts().create({
-      uri,
-      name: metadata.name,
-      symbol: metadata.symbol,
-      useNewMint: tokenMint,
-      sellerFeeBasisPoints: 1000, // 10% royalty
-      isMutable: true,
-    });
+  console.log("Metadata uploaded:", uri);
 
-    console.log(nft);
+  printConsoleSeparator("NFT details");
 
-    printConsoleSeparator("NFT created:");
-    console.log("Transaction Signature:", response.signature);
-    console.log("Explorer URL:", explorerURL({ txSignature: response.signature }));
+  console.log("Creating NFT using Metaplex...");
 
-    printConsoleSeparator("Find by mint:");
+  const tokenMint = Keypair.generate();
 
-    // Retrieve NFT info by mint address
-    const mintInfo = await metaplex.nfts().findByMint({
-      mintAddress: tokenMint.publicKey,
-    });
-    console.log(mintInfo);
-  } catch (error) {
-    console.error("Error uploading metadata or creating NFT:", error);
-  }
+  // create a new nft using the metaplex sdk
+  const { nft, response } = await metaplex.nfts().create({
+    uri,
+    name: metadata.name,
+    symbol: metadata.symbol,
+    useNewMint: tokenMint,
+
+    // `sellerFeeBasisPoints` is the royalty that you can define on nft
+    sellerFeeBasisPoints: 1000, // Represents 10.00%.
+
+    //
+    isMutable: true,
+  });
+
+  console.log(nft);
+
+  printConsoleSeparator("NFT created:");
+  console.log(explorerURL({ txSignature: response.signature }));
+
+  /**
+   *
+   */
+
+  printConsoleSeparator("Find by mint:");
+
+  // you can also use the metaplex sdk to retrieve info about the NFT's mint
+  const mintInfo = await metaplex.nfts().findByMint({
+    mintAddress: tokenMint.publicKey,
+  });
+  console.log(mintInfo);
 })();
